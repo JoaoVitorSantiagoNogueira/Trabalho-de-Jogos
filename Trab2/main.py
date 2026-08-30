@@ -9,7 +9,6 @@ WIDTH   =  1280; HEIGHT =  720
 screen = pygame.display.set_mode((WIDTH, HEIGHT))  
 
 # caso precise de usar fontes na main, descomente
-
 font_size = 25
 font = pygame.font.Font(None, font_size)
 
@@ -57,15 +56,10 @@ buttons.append(
         (BUTTON_SIZE, BUTTON_SIZE),
         "X"
     )
-)
-
-# Cria a janela
-
-screen = pygame.display.set_mode((WIDTH, HEIGHT))  
-
-objects = []
+) 
 
 while True: 
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             exit()
@@ -85,11 +79,12 @@ while True:
                         print(f"button {button.text} pressed")
 
                         if grid.selected_cell is not None:
-                            if button.text == "X":
-                                grid.clear_value()
-                            else:
-                                value = int(button.text)
-                                grid.set_value(value)
+                            if grid.selected_cell.fixed == False: 
+                                if button.text == "X":
+                                    grid.clear_value()
+                                else:
+                                    value = int(button.text)
+                                    grid.set_value(value)
 
 
 
@@ -117,10 +112,10 @@ while True:
                     grid.selected_cell = grid.selected_cell.col - 1 >= 0 and grid.cells[grid.selected_cell.row][grid.selected_cell.col - 1] or grid.selected_cell
                 if event.key == pygame.K_RIGHT:
                     grid.selected_cell = grid.selected_cell.col + 1 < grid_size[1] and grid.cells[grid.selected_cell.row][grid.selected_cell.col + 1] or grid.selected_cell
-                if pygame.K_1 <= event.key <= pygame.K_9:
+                if pygame.K_1 <= event.key <= pygame.K_9 and grid.selected_cell.fixed == False:
                     value = event.key - pygame.K_0
                     grid.set_value(value)
-                if event.key == pygame.K_BACKSPACE:
+                if event.key == pygame.K_BACKSPACE and grid.selected_cell.fixed == False:
                     grid.clear_value()
 
         # Desenha
@@ -128,6 +123,12 @@ while True:
         grid.draw(screen)  # Draw the grid with white color
         for button in buttons:
             button.draw(screen)
+
+        if grid.is_full():
+            font = pygame.font.Font(None, 36)
+            text_surface = font.render("Congratulations! You solved the puzzle!", True, (0, 255, 0))
+            text_rect = text_surface.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+            screen.blit(text_surface, text_rect)
         
 
         pygame.display.flip()
