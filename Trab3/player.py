@@ -1,12 +1,14 @@
 import pygame
 from abc import ABC, abstractmethod
-from util import colored_sprite
+from util import EventHandler
 
 class Player:
 
     def __init__(self, pos):
-        self.pos = pos
-        self.state = ExampleState(self)
+        self.pos = pygame.Vector2(pos)
+        self.vida = 3
+        self.angulo = 0
+        self.state =  JogadorNormal(self)
 
     def update(self, dt):
         self.state.update(dt)
@@ -14,27 +16,31 @@ class Player:
     def draw(self, screen):
         self.state.draw(screen)
 
-    def action_1(self):
-        self.state.action_1()
+    def disparo(self):
+        self.state.disparo()
 
-    def action_2(self):
-        self.state.action_2()
+    def disparotriplo(self):
+        self.state.disparotriplo()
 
-    def change_state(self, new_state):
+    def troca_estado(self, new_state):
         self.state.delete()
         self.state = new_state(self)
 
+    # Retirada de vida
+    def hit(self):
+        self.state.hit()
 
-class PlayerState(ABC):
-
-    # Sprite é comum a classe estado
-    sprite = pygame.Surface((32, 32))
+# Classe base responsável por definir os estados do jogador
+class EstadosJogador(ABC):
 
     def __init__(self, player):
         self.P = player
 
+    # Desenho da nave no centro
     def draw(self, screen):
-        screen.blit(self.sprite, self.P.pos)
+        sprite = pygame.transform.rotate(self.sprite, self.P.angulo)
+        rect = sprite.get_rect(center=self.P.pos)
+        screen.blit(sprite, rect)
 
     def delete(self):
         pass  # se precisar apagar algo na mudança de estados
@@ -43,30 +49,121 @@ class PlayerState(ABC):
     def update(self, dt):
         pass
 
-    @abstractmethod
-    def action_1(self, dt):
-        pass
+    # Disparo normal
+    def disparo(self):
+        mouse_pos = pygame.mouse.get_pos()
+        EventHandler().notify("Shoot", (self.P.pos, mouse_pos))
 
-    @abstractmethod
-    def action_2(self, dt):
-        pass
+    # Disparo triplo, mas curto alcance   
+    def disparotriplo(self):
+        mouse_pos = pygame.mouse.get_pos()
+        EventHandler().notify("TripleShoot", (self.P.pos, mouse_pos))
 
+# Estado padrão do jogador
+class JogadorNormal(EstadosJogador):
 
-class ExampleState(PlayerState):
+    # Carregamento da imagem da nave
+    def __init__(self, player):
+        super().__init__(player)
+        self.sprite = pygame.image.load(r"C:\Python\JogosTrab\Trabalho-de-Jogos\Trab3\images\nave.png").convert_alpha()
+        self.sprite = pygame.transform.scale(self.sprite, (70, 70))
 
-    # Sempre aqui para o estados, mesmo que descarregue
-    # sprite = pygame.image.load("images/duck/base.png")
+    # Movimentação da nave com WASD
+    def update(self, dt):
+        vel = 5
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_w]:
+            self.P.pos[1] -= vel
+            self.P.angulo = 90
+        if keys[pygame.K_s]:
+            self.P.pos[1] += vel
+            self.P.angulo = -90
+        if keys[pygame.K_a]:
+            self.P.pos[0] -= vel
+            self.P.angulo = 180
+        if keys[pygame.K_d]:
+            self.P.pos[0] += vel
+            self.P.angulo = 0
 
-    # ALternativamente, use em retângulo
-    sprite = colored_sprite((0, 255, 0))
+        # Evita que a nave saia da tela
+        self.P.pos.x = max(0, min(768, self.P.pos.x))
+        self.P.pos.y = max(0, min(568, self.P.pos.y))
+
+    # Dano tomado
+    def hit(self):
+        self.P.vida -= 1
+        if self.P.vida > 0: # Se tiver vida, ativa o modo invencivel
+            self.P.troca_estado(DanoJogador)
+        else:
+            self.P.troca_estado(JogadorMorto) # Morre
+
+# Momento que o jogador sofre dano e fica invisivel
+class DanoJogador(EstadosJogador):
+
+    def __init__(self, player):
+        super().__init__(player)
+        self.dano = 0 # Tempo do dano até voltar ao normal
+
+        # Imagem da nave
+        self.sprite = pygame.image.load(r"C:\Python\JogosTrab\Trabalho-de-Jogos\Trab3\images\nave.png").convert_alpha()
+        self.sprite = pygame.transform.scale(self.sprite, (70, 70))
 
     def update(self, dt):
-        pass  # faça sua implementação
-    
-    def action_1(self):
-        print("faz a ação 1")
-        pass # faça sua implementação
+        self.dano += dt
+        vel = 5
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_w]:
+            self.P.pos[1] -= vel
+            self.P.angulo = 90
+        if keys[pygame.K_s]:
+            self.P.pos[1] += vel
+            self.P.angulo = -90
+        if keys[pygame.K_a]:
+            self.P.pos[0] -= vel
+            self.P.angulo = 180
+        if keys[pygame.K_d]:
+            self.P.pos[0] += vel
+            self.P.angulo = 0
 
-    def action_2(self):
-        print("faz a ação 2")
-        pass # faça sua implementação
+        self.P.pos.x = max(0, min(768, self.P.pos.x))
+        self.P.pos.y = max(0, min(568, self.P.pos.y))
+
+        # Tempo de incencibilidade
+        if self.dano >= 120:
+            self.P.troca_estado(JogadorNormal)
+
+    # Efeito de piscar na tela ao sofrer dano
+    def draw(self, screen):
+        if (self.dano // 10) % 2 == 0:
+            super().draw(screen)
+
+    def disparo(self):
+        pass
+
+    def disparotriplo(self):
+        pass
+
+    # Invencibilidade
+    def hit(self):
+        pass
+
+# Quando o jogador morre
+class JogadorMorto(EstadosJogador):
+
+    # Nave explode e vira um png de explosão
+    def __init__(self, player):
+        super().__init__(player)
+        self.sprite = pygame.image.load(r"C:\Python\JogosTrab\Trabalho-de-Jogos\Trab3\images\explosão.png").convert_alpha()
+        self.sprite = pygame.transform.scale(self.sprite, (100, 100))
+
+    def update(self, dt):
+        pass
+
+    def disparo(self):
+        pass
+
+    def disparotriplo(self):
+        pass
+
+    def hit(self):
+        pass
