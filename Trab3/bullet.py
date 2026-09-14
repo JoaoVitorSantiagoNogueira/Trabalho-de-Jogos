@@ -3,59 +3,151 @@ from abc import ABC, abstractmethod
 from util import colored_sprite, EventHandler
 
 
-import math
-
-def rotate(pos, angle, axis = (0,0)):
-    angle = math.radians(angle)
-    x, y = pos
-    ax, ay = axis
-
-    # Translate so axis is the origin
-    x -= ax
-    y -= ay
-
-    # Rotate
-    cos_a = math.cos(angle)
-    sin_a = math.sin(angle)
-
-    rx = x * cos_a - y * sin_a
-    ry = x * sin_a + y * cos_a
-
-    # Translate back
-    return rx + ax, ry + ay
-
 class Bullet (ABC):
 
-    def __init__(self, pos, angle = 0, radius = 16, life_time = None):
-        self.pos = pos
-        self.origin = pygame.Vector2(pos)
+    def __init__(self, pos, velocity, radius = 16, life_time = None):
+        self.pos = pygame.Vector2(pos)
+        self.velocity = pygame.Vector2(velocity)
         self.life_time = life_time
-        self.angle = angle
         self.elapsed = 0
         self.radius = radius
 
-        self.sprite = colored_sprite ((255, 0, 0), (self.radius*2, self.radius*2))
+    def get_rect(self):
+        return self.sprite.get_rect(topleft=self.pos)
 
+    @abstractmethod
     def update(self, dt):
-
-        self.elapsed += dt
-        if self.life_time and self.elapsed >= self.life_time:
-                self.destroy()       
-
-        self.pos = rotate(self.move(), self.angle)+self.origin
+        pass
 
     def draw(self, screen):
         screen.blit(self.sprite, self.pos)
 
-    @abstractmethod
-    def move(self):
+    def hit(self):
         pass
 
     def destroy(self): # pede para deletar
         EventHandler().notify("DestroyObj", self) # avisa o mundo que saiu da tela
 
-class sinBullet (Bullet):
-    # exemplo, façam algo mais rebuscado
+class PlayerBullet(Bullet):
+    frames = None
 
-    def move(self):
-        return pygame.Vector2(self.elapsed, math.sin(self.elapsed/50)*50) 
+    def __init__(self, pos):
+        super().__init__(
+            pos,
+            velocity=(0, -500),
+            life_time=5
+        )
+
+        if PlayerBullet.frames is None:
+            PlayerBullet.load_frames()
+
+        self.sprite = self.frames["straight"]
+
+        self.animation_timer = 0
+        self.frame_time = 0.08
+
+        self.frame_index = 0
+
+        # pequeno tempo inicial usando o tiro reto
+        self.spawn_timer = 0
+        self.spawn_duration = 0.08
+
+        self.impacting = False
+        self.impact_timer = 0
+        self.impact_duration = 0.15
+
+    @classmethod
+    def load_frames(cls):
+        assets = pygame.image.load(
+            "images/assets/SpaceInvaders.png"
+        ).convert_alpha()
+
+        def cut_and_scale(assets, rect, scale=3):
+            sprite = assets.subsurface(rect)
+
+            return pygame.transform.scale(
+                sprite,
+                (
+                    sprite.get_width() * scale,
+                    sprite.get_height() * scale
+                )
+            )
+
+        cls.frames = {
+            "straight": cut_and_scale(assets, (32, 0, 16, 16),3),
+
+            "left": cut_and_scale(assets, (32, 16, 16, 16),3),
+
+            "right": cut_and_scale(assets,(80, 16, 16, 16),3),
+
+            "impact1": cut_and_scale(assets,(32, 48, 16, 16),3),
+
+            "impact2": cut_and_scale(assets, (32, 64, 16, 16), 3)
+        }
+    
+    def update(self, dt):
+        def update_impact(self, dt):
+            self.impact_timer += dt
+
+            if self.impact_timer < self.impact_duration / 2:
+                self.sprite = self.frames["impact1"]
+
+            elif self.impact_timer < self.impact_duration:
+                self.sprite = self.frames["impact2"]
+
+            else:
+                self.destroy()
+        self.elapsed += dt
+
+        if self.life_time and self.elapsed >= self.life_time:
+            self.destroy()
+            return
+
+        # Se está mostrando o impacto
+        if self.impacting:
+            self.update_impact(dt)
+            return
+
+        # Movimento normal
+        self.pos += self.velocity * dt
+
+        # Primeiro frame reto
+        self.spawn_timer += dt
+
+        if self.spawn_timer < self.spawn_duration:
+            self.sprite = self.frames["straight"]
+            return
+
+        # Depois alterna os raios
+        self.animation_timer += dt
+
+        if self.animation_timer >= self.frame_time:
+            self.animation_timer -= self.frame_time
+
+            self.frame_index = (self.frame_index + 1) % 2
+
+            if self.frame_index == 0:
+                self.sprite = self.frames["left"]
+            else:
+                self.sprite = self.frames["right"]
+    def hit(self):
+        self.impacting = True
+
+        self.velocity = pygame.Vector2(0, 0)
+
+        self.impact_timer = 0
+        self.sprite = self.frames["impact1"]
+
+class EnemyBullet(Bullet):
+
+    def __init__(self, pos):
+        super().__init__(pos,velocity=(0, 300), life_time=5)
+        self.sprite = colored_sprite((255, 255, 255), (self.radius, self.radius))
+
+    def update(self, dt):
+        self.elapsed += dt
+        if self.life_time and self.elapsed >= self.life_time:
+            self.destroy()
+            return
+
+        self.pos.y += self.velocity.y * dt

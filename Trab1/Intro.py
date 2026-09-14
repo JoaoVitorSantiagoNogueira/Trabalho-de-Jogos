@@ -7,13 +7,12 @@ pygame.font.init()
 
 
 font = font = pygame.font.Font(None, 50)
-Nome = "Seu Nome"
-rect =  (260, 100, 175, 35)
+Nome = "João Victor"
+#ajustei a largura para 200 para caber o nome
+rect =  (260, 100, 200, 35)
 
-random.seed(Nome)
-x, y =  random.randint(0, 500), random.randint(0, 400)
-
-print(y)
+#deixei a posicao inicial do texto igual a do retangulo para ficar centralizado
+x, y =  (260,100)
 
 # Cria a janela
 WIDTH   =  800; HEIGHT =  600
@@ -24,6 +23,7 @@ while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             exit()
+            
         # Desenha
         screen.fill((30, 30, 30))
         pygame.draw.rect(screen, (255,255,255), rect)
